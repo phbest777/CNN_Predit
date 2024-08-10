@@ -162,7 +162,7 @@ class AverPriceClass():
         enddate=self._datadate
         tscode_df=self.GetTsCodeDFByDetail(instrumentidlist=tscodelist,symbollist=symbollist,
                                            instrumentnamelist=instrumentnamelist,exchangeidlist=exchangeidlist)
-        tscode=tscodelist[0]
+        tscode=tscodelist[0]#获取列表元素
         data_df=self.GetDailyDataByTsCode(Ts_code=tscode,Start_Date=startdate,End_Date=enddate)
         final_df=self.GetALLDataFrame(IniDF=data_df,Type_Df=tscode_df,Start_Date=startdate,End_Date=enddate)
         ave_df=self.DF_Iint(final_df)
@@ -216,6 +216,9 @@ class AverPriceClass():
         sql = "select * from QUANT_FUTURE_MA_INSTRUMNET"
         ret_list = self._db_select_rows_list(sqlstr=sql)
         dbdf=self.GetAverPriceDF(ret_list[0])
+        dbdf.rename(columns={'ts_code': 'tscode'}, inplace=True)
+        dbdf.rename(columns={'dateindex': 'tradedate'}, inplace=True)
+        dbdf.fillna(0.0, inplace=True)
         #df=pd.read_sql(sql,self._pdconnect)
         self._df2db_insert('QUANT_FUTURE_AVG_PRICE',dbdf)
         #print(df)
