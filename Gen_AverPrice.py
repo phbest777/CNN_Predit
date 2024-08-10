@@ -124,7 +124,8 @@ class AverPriceClass():
         #    IniDF = pd.concat([IniDF, df])
         IniDF.insert(loc=1,column='exchangeid',value=[Type_Df['exchangeid'][0]]*len(IniDF))
         IniDF.insert(loc=2,column='instrumentid',value=[Type_Df['symbol'][0]]*len(IniDF))
-        IniDF.insert(loc=3,column='uptdate',value=[self._datadate]*len(IniDF))
+        IniDF.insert(loc=3,column='instrumentname',value=[Type_Df['name'][0]]*len(IniDF))
+        IniDF.insert(loc=4,column='uptdate',value=[self._datadate]*len(IniDF))
         IniDF['pre_close'] = IniDF['pre_close'].astype('float32')
         IniDF['pre_settle'] = IniDF['pre_settle'].astype('float32')
         IniDF['open'] = IniDF['open'].astype('float32')
@@ -139,11 +140,12 @@ class AverPriceClass():
         df.insert(loc=len(df.columns), column='dateindex', value=df['trade_date'])  # 增加一列日期列
         x = df.copy()
         x.loc[:, 'trade_date'] = pd.to_datetime(x.loc[:, 'trade_date'])  # 将数据类型转换为日期类型,可以直接获取相应年份的数据
-        # x = x.set_index('trade_date')
+        #x = x.set_index('trade_date')
         df = x
         # df['trade_date'] = pd.to_datetime(df['trade_date'])
         df.set_index('trade_date', inplace=True)
         df.rename(columns={'vol': 'volume'}, inplace=True)
+
         df = df.iloc[::-1]
 
         df.insert(loc=len(df.columns), column='MA5', value=df['close'].rolling(5).mean())
@@ -166,8 +168,10 @@ class AverPriceClass():
         data_df=self.GetDailyDataByTsCode(Ts_code=tscode,Start_Date=startdate,End_Date=enddate)
         final_df=self.GetALLDataFrame(IniDF=data_df,Type_Df=tscode_df,Start_Date=startdate,End_Date=enddate)
         ave_df=self.DF_Iint(final_df)
-        dbdf=ave_df[['ts_code','exchangeid','instrumentid','MA5','MA10',
-                      'MA20','MA30','MA60','dateindex','uptdate']]
+        dbdf=ave_df[['ts_code','exchangeid','instrumentid','instrumentname',
+                     'pre_close','pre_settle','open','high','low',
+                     'close','settle','volume','oi','oi_chg',
+                     'MA5','MA10','MA20','MA30','MA60','dateindex','uptdate']]
 
         return dbdf
 
@@ -217,10 +221,20 @@ class AverPriceClass():
         ret_list = self._db_select_rows_list(sqlstr=sql)
         dbdf=self.GetAverPriceDF(ret_list[0])
         dbdf.rename(columns={'ts_code': 'tscode'}, inplace=True)
+        dbdf.rename(columns={'pre_close': 'preclose'}, inplace=True)
+        dbdf.rename(columns={'pre_settle': 'presettle'}, inplace=True)
+        dbdf.rename(columns={'open': 'openprice'}, inplace=True)
+        dbdf.rename(columns={'high': 'highprice'}, inplace=True)
+        dbdf.rename(columns={'low': 'lowprice'}, inplace=True)
+        dbdf.rename(columns={'close': 'closeprice'}, inplace=True)
         dbdf.rename(columns={'dateindex': 'tradedate'}, inplace=True)
+        dbdf.rename(columns={'oi': 'oivolume'}, inplace=True)
+        dbdf.rename(columns={'oi_chg': 'oichange'}, inplace=True)
+
         dbdf.fillna(0.0, inplace=True)
+
         #df=pd.read_sql(sql,self._pdconnect)
-        self._df2db_insert('QUANT_FUTURE_AVG_PRICE',dbdf)
+        self._df2db_insert('QUANT_FUTURE_HISINFO',dbdf)
         #print(df)
 if __name__=="__main__":
     #print('ddddddddd')
