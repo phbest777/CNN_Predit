@@ -75,7 +75,7 @@ class AverPriceClass():
         rows = self._conn_cursor.fetchall()
         ret_dict['col_name'] = columns
         ret_dict['rows'] = rows
-        self._conn_cursor.close()
+        #self._conn_cursor.close()
         return ret_dict
     def _db_select_rows_list(self,sqlstr:str)->list:
         self._conn_cursor.execute(sqlstr)
@@ -94,7 +94,25 @@ class AverPriceClass():
         for item in retlist:
             paralist.append(item.get(colname))
         return paralist
-
+    def _df2db_insert(self,p_table_name, p_dataframe):
+        # 准备数据，将待插入的dataframe转成list,以便多值插入
+        tmp_list = np.array(p_dataframe).tolist()
+        # 准备sql窜 形如 insert into table_name(a,b,c) values(:a,:b,:c)
+        sql_string = 'insert into {}({}) values({})'.format(p_table_name, ','.join(list(p_dataframe.columns)),
+                                                            ','.join(list(map(lambda x: ':' + x, p_dataframe.columns))))
+        self._conn_cursor.executemany(sql_string, tmp_list)
+        self._conn.commit()
+        # 准备数据库连接，并插入数据库
+        '''
+        try:
+            with self._conn as conn:
+                with self._conn_cursor as cursor:
+                    cursor.executemany(sql_string, tmp_list)
+                    conn.commit()
+        except cx_Oracle.Error as error:
+            print('Error occurred:')
+            print(error)
+        '''
     def GetDailyDataByTsCode(self, Ts_code, Start_Date, End_Date):
         df = self._ts_pro.fut_daily(ts_code=Ts_code, start_date=Start_Date, end_date=End_Date, fields=
         'ts_code,trade_date,pre_close,pre_settle,open,high,low,close,settle,vol,oi,oi_chg')
@@ -137,25 +155,38 @@ class AverPriceClass():
         return IniDF
 
     def DF_Iint(self,df):
-        df.insert(loc=len(df.columns), column='dateindex', value=df['trade_date'])  # 增加一列日期列
+        #df.insert(loc=len(df.columns), column='dateindex', value=df['trade_date'])  # 增加一列日期列
+        df.insert(loc=len(df.columns), column='tradedate', value=df['trade_date'])
         x = df.copy()
         x.loc[:, 'trade_date'] = pd.to_datetime(x.loc[:, 'trade_date'])  # 将数据类型转换为日期类型,可以直接获取相应年份的数据
+        #x[x['trade_date']]=pd.to_datetime(x[x['trade_date']])
+        #srcdf = x.select_dtypes(include=[np.number]).columns('trade_date')
+        #x=pd.to_datetime(x[srcdf])
         #x = x.set_index('trade_date')
         df = x
         # df['trade_date'] = pd.to_datetime(df['trade_date'])
         df.set_index('trade_date', inplace=True)
         df.rename(columns={'vol': 'volume'}, inplace=True)
+        df.rename(columns={'ts_code': 'tscode'}, inplace=True)
+        df.rename(columns={'pre_close': 'preclose'}, inplace=True)
+        df.rename(columns={'pre_settle': 'presettle'}, inplace=True)
+        df.rename(columns={'open': 'openprice'}, inplace=True)
+        df.rename(columns={'high': 'highprice'}, inplace=True)
+        df.rename(columns={'low': 'lowprice'}, inplace=True)
+        df.rename(columns={'close': 'closeprice'}, inplace=True)
+        df.rename(columns={'oi': 'oivolume'}, inplace=True)
+        df.rename(columns={'oi_chg': 'oichange'}, inplace=True)
 
         df = df.iloc[::-1]
 
-        df.insert(loc=len(df.columns), column='MA5', value=df['close'].rolling(5).mean())
-        df.insert(loc=len(df.columns), column='MA10', value=df['close'].rolling(10).mean())
-        df.insert(loc=len(df.columns), column='MA20', value=df['close'].rolling(20).mean())
-        df.insert(loc=len(df.columns), column='MA30', value=df['close'].rolling(30).mean())
-        df.insert(loc=len(df.columns), column='MA60', value=df['close'].rolling(60).mean())
+        df.insert(loc=len(df.columns), column='MA5', value=df['closeprice'].rolling(5).mean())
+        df.insert(loc=len(df.columns), column='MA10', value=df['closeprice'].rolling(10).mean())
+        df.insert(loc=len(df.columns), column='MA20', value=df['closeprice'].rolling(20).mean())
+        df.insert(loc=len(df.columns), column='MA30', value=df['closeprice'].rolling(30).mean())
+        df.insert(loc=len(df.columns), column='MA60', value=df['closeprice'].rolling(60).mean())
         return df
 
-    def GetAverPriceDF(self,instrumentinfolist:dict):
+    def GetAverPriceDF(self,instrumentinfolist:dict,tablename:str):
         tscodelist=[instrumentinfolist.get('TS_CODE')]
         symbollist=[instrumentinfolist.get('TS_SYMBOL')]
         instrumentnamelist=[instrumentinfolist.get('STD_INSTRUMENTNAME')]
@@ -168,28 +199,18 @@ class AverPriceClass():
         data_df=self.GetDailyDataByTsCode(Ts_code=tscode,Start_Date=startdate,End_Date=enddate)
         final_df=self.GetALLDataFrame(IniDF=data_df,Type_Df=tscode_df,Start_Date=startdate,End_Date=enddate)
         ave_df=self.DF_Iint(final_df)
-        dbdf=ave_df[['ts_code','exchangeid','instrumentid','instrumentname',
-                     'pre_close','pre_settle','open','high','low',
-                     'close','settle','volume','oi','oi_chg',
-                     'MA5','MA10','MA20','MA30','MA60','dateindex','uptdate']]
+        dbdf=ave_df[['tscode','exchangeid','instrumentid','instrumentname',
+                     'preclose','presettle','openprice','highprice','lowprice',
+                     'closeprice','settle','volume','oivolume','oichange',
+                     'MA5','MA10','MA20','MA30','MA60','tradedate','uptdate']]
+        dbdf.fillna(0.0, inplace=True)
+        self._df2db_insert(p_table_name=tablename,p_dataframe=dbdf)
+        print('['+tscode+"]数据写入数据库成功！！")
 
-        return dbdf
-
-    def _df2db_insert(self,p_table_name, p_dataframe):
-        # 准备数据，将待插入的dataframe转成list,以便多值插入
-        tmp_list = np.array(p_dataframe).tolist()
-        # 准备sql窜 形如 insert into table_name(a,b,c) values(:a,:b,:c)
-        sql_string = 'insert into {}({}) values({})'.format(p_table_name, ','.join(list(p_dataframe.columns)),
-                                                            ','.join(list(map(lambda x: ':' + x, p_dataframe.columns))))
-        # 准备数据库连接，并插入数据库
-        try:
-            with self._conn as conn:
-                with self._conn_cursor as cursor:
-                    cursor.executemany(sql_string, tmp_list)
-                    conn.commit()
-        except cx_Oracle.Error as error:
-            print('Error occurred:')
-            print(error)
+    def GetAverPriceDFBatch(self,instrumentinfolist:[],tablename:str):
+        for item in instrumentinfolist:
+            self.GetAverPriceDF(instrumentinfolist=item,tablename=tablename)
+        print("所有历史行情数据写入数据库成功")
     def AverPriceDFToDB(self,ave_df:pd.DataFrame):
         av=""
     def test(self):
@@ -219,22 +240,11 @@ class AverPriceClass():
     def test2(self):
         sql = "select * from QUANT_FUTURE_MA_INSTRUMNET"
         ret_list = self._db_select_rows_list(sqlstr=sql)
-        dbdf=self.GetAverPriceDF(ret_list[0])
-        dbdf.rename(columns={'ts_code': 'tscode'}, inplace=True)
-        dbdf.rename(columns={'pre_close': 'preclose'}, inplace=True)
-        dbdf.rename(columns={'pre_settle': 'presettle'}, inplace=True)
-        dbdf.rename(columns={'open': 'openprice'}, inplace=True)
-        dbdf.rename(columns={'high': 'highprice'}, inplace=True)
-        dbdf.rename(columns={'low': 'lowprice'}, inplace=True)
-        dbdf.rename(columns={'close': 'closeprice'}, inplace=True)
-        dbdf.rename(columns={'dateindex': 'tradedate'}, inplace=True)
-        dbdf.rename(columns={'oi': 'oivolume'}, inplace=True)
-        dbdf.rename(columns={'oi_chg': 'oichange'}, inplace=True)
-
-        dbdf.fillna(0.0, inplace=True)
-
+        self.GetAverPriceDFBatch(ret_list,'QUANT_FUTURE_HISINFO')
+        #dbdf=self.GetAverPriceDF(ret_list[0])
+        #dbdf.fillna(0.0, inplace=True)
         #df=pd.read_sql(sql,self._pdconnect)
-        self._df2db_insert('QUANT_FUTURE_HISINFO',dbdf)
+        #self._df2db_insert('QUANT_FUTURE_HISINFO',dbdf)
         #print(df)
 if __name__=="__main__":
     #print('ddddddddd')
