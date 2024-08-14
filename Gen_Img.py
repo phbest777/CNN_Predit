@@ -25,7 +25,7 @@ import mplfinance as mpf
 csvFile=open('E:\\test.csv','w',encoding='GB2312',newline="")
 csvWriter=csv.writer(csvFile)
 
-ts.set_token('d0efdf1093648dfb0da4a3f99ae8db8878095a72bcc285246267718c')
+ts.set_token('4e7497b0629e1bf909b3efc087eadf39ef7002f9f4d57aea9a9303b0')
 pro=ts.pro_api()
 '''
 获取商品交易所所有主力合约代码
@@ -191,7 +191,7 @@ start_date='20210916'
 end_date='20220731'
 batch_size=60#每次需要的数据天数，一般为60日
 Tday=-5
-Img_Save_Path='D:\\PythonProject\\AI\\PyTorch\\CNN_Predit\\DATA\\IMG\\ResNet\\SMALL\\train\\'
+Img_Save_Path='D:\\PythonProject\\CNN_Predit\\DATA\\IMG\\ResNet\\SMALL\\train\\'
 
 inidf_MA=GetDailyDataByTsCode(pro,'NULL',start_date,end_date)
 inidf_LX=GetDailyDataByTsCode(pro,'NULL',start_date,end_date)

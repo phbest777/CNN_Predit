@@ -207,6 +207,27 @@ class AverPriceClass():
         self._df2db_insert(p_table_name=tablename,p_dataframe=dbdf)
         print('['+tscode+"]数据写入数据库成功！！")
 
+    def GetAverPriceDFByDay(self,instrumentinfolist:dict,tablename:str):
+        tscodelist=[instrumentinfolist.get('TS_CODE')]
+        symbollist=[instrumentinfolist.get('TS_SYMBOL')]
+        instrumentnamelist=[instrumentinfolist.get('STD_INSTRUMENTNAME')]
+        exchangeidlist=[instrumentinfolist.get('TS_EXCHANGEID')]
+        startdate=self._datadate
+        enddate=self._datadate
+        tscode_df=self.GetTsCodeDFByDetail(instrumentidlist=tscodelist,symbollist=symbollist,
+                                           instrumentnamelist=instrumentnamelist,exchangeidlist=exchangeidlist)
+        tscode=tscodelist[0]#获取列表元素
+        data_df=self.GetDailyDataByTsCode(Ts_code=tscode,Start_Date=startdate,End_Date=enddate)
+        final_df=self.GetALLDataFrame(IniDF=data_df,Type_Df=tscode_df,Start_Date=startdate,End_Date=enddate)
+        ave_df=self.DF_Iint(final_df)
+        dbdf=ave_df[['tscode','exchangeid','instrumentid','instrumentname',
+                     'preclose','presettle','openprice','highprice','lowprice',
+                     'closeprice','settle','volume','oivolume','oichange',
+                     'MA5','MA10','MA20','MA30','MA60','tradedate','uptdate']]
+        dbdf.fillna(0.0, inplace=True)
+        self._df2db_insert(p_table_name=tablename,p_dataframe=dbdf)
+        print('['+tscode+"]数据写入数据库成功！！")
+
     def GetAverPriceDFBatch(self,instrumentinfolist:[],tablename:str):
         for item in instrumentinfolist:
             self.GetAverPriceDF(instrumentinfolist=item,tablename=tablename)
@@ -238,7 +259,7 @@ class AverPriceClass():
         #print(ret_dict['rows'][0][ret_dict['col_name'].index('TS_CODE')])
         #print(ts_code_list[5])
     def test2(self):
-        sql = "select * from QUANT_FUTURE_MA_INSTRUMNET"
+        sql = "select * from QUANT_FUTURE_MA_INSTRUMNET where useflag='1'"
         ret_list = self._db_select_rows_list(sqlstr=sql)
         self.GetAverPriceDFBatch(ret_list,'QUANT_FUTURE_HISINFO')
         #dbdf=self.GetAverPriceDF(ret_list[0])
